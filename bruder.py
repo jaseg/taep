@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import tempfile
+import shutil
 import re
+import base64
 import copy
 import subprocess
 import shlex
@@ -13,22 +15,10 @@ from pathlib import Path
 import click
 from bs4 import BeautifulSoup
 
-from svg_util import setup_svg, Tag, parse_path_d, Transform
+from svg_util import *
 
 
 def run_cargo_command(binary, *args, **kwargs):
-    cmd_args = []
-    for key, value in kwargs.items():
-        if value is not None:
-            if value is False:
-                continue
-
-            cmd_args.append(f'--{key.replace("_", "-")}')
-
-            if value is not True:
-                cmd_args.append(value)
-    cmd_args.extend(map(str, args))
-
     # By default, try a number of options:
     candidates = [
         # somewhere in $PATH
@@ -43,9 +33,32 @@ def run_cargo_command(binary, *args, **kwargs):
         str(Path(sys.executable).parent / f'wasi-{binary}')
         ]
 
+    return run_command(binary, *args, candidates=candidates, **kwargs)
+
+
+def run_command(binary, *args, candidates=[], **kwargs):
+    cmd_args = []
+    for key, value in kwargs.items():
+        if value is not None:
+            if value is False:
+                continue
+
+            if len(key) > 1:
+                cmd_args.append(f'--{key.replace("_", "-")}')
+            else:
+                cmd_args.append(f'-{key}')
+
+            if value is not True:
+                cmd_args.append(str(value))
+    cmd_args.extend(map(str, args))
+
+    # By default, try a number of options:
+    if not candidates:
+        candidates = [binary]
+
     # if envvar is set, try that first.
     if (env_var := os.environ.get(binary.upper())):
-        candidates = [env_var, *candidates]
+        candidates = [str(Path(env_var).expanduser()), *candidates]
 
     for cand in candidates:
         try:
@@ -89,8 +102,10 @@ def template(num_rows, tape_width, tape_border, tape_spacing, tape_length, magic
 
 @cli.command()
 @click.option('--magic-color', type=str, default='#cc0000', help='SVG color of tape')
+@click.option('--dpi', type=float, default=180, help='Printer bitmap resolution in DPI')
+@click.option('--pixel-height', type=int, default=127, help='Printer tape vertical pixel height')
 @click.argument('input_svg', type=click.File(mode='r'), default='-')
-def dither(input_svg, magic_color):
+def dither(input_svg, magic_color, dpi, pixel_height):
     tmpdir = Path('/tmp/foo') # FIXME debug
     with tempfile.NamedTemporaryFile('w', suffix='.svg') as tmp_in_svg,\
             tempfile.NamedTemporaryFile('r', suffix='.svg') as tmp_out_svg:
@@ -104,7 +119,8 @@ def dither(input_svg, magic_color):
 
         soup = BeautifulSoup(tmp_out_svg.read(), 'xml')
 
-    print(soup.prettify())
+    preview_images = []
+    tape_num = 1
     for i, path in enumerate(list(soup.find_all('path'))):
         if path.get('stroke').lower() != magic_color:
             continue
@@ -149,20 +165,46 @@ def dither(input_svg, magic_color):
         out_soup = copy.copy(soup)
 
         print(f'found path {path_id} of length {path_len:2f} and angle {math.degrees(path_angle):.1f} deg with physical stroke width {stroke_w:.2f} from ({x1:.2f}, {y1:.2f}) to ({x2:.2f}, {y2:.2f})', file=sys.stderr)
-        out_soup.find('svg').append(out_soup.new_tag('path', fill='none', stroke='blue', stroke_width=f'24px',
-                    d=f'M {x1} {y1} L {x2} {y2}'))
+        #out_soup.find('svg').append(out_soup.new_tag('path', fill='none', stroke='blue', stroke_width=f'24px',
+        #            d=f'M {x1} {y1} L {x2} {y2}'))
         xf = Transform.translate(0, stroke_w/2) * Transform.rotate(-path_angle) * Transform.translate(-x1, -y1)
         g = out_soup.new_tag('g', id='transform-group', transform=xf.as_svg())
         k = list(out_soup.find('svg').contents)
         for c in k:
             g.append(c.extract())
         out_soup.find('svg').append(g)
+        out_soup.find('path', id=path['id']).parent.decompose()
         out_soup.find('svg')['viewBox'] = f'0 0 {path_len} {stroke_w}'
         out_soup.find('svg')['width'] = f'{path_len}mm'
         out_soup.find('svg')['height'] = f'{stroke_w}mm'
 
-        with open(f'/tmp/baz-{i}.svg', 'w') as f:
-            f.write(out_soup.prettify())
+        with tempfile.NamedTemporaryFile('w', suffix='.svg') as tmp_svg,\
+                tempfile.NamedTemporaryFile('rb', suffix='.png') as tmp_png,\
+                tempfile.NamedTemporaryFile('rb', suffix='.png') as tmp_dither:
+            tmp_svg.write(out_soup.prettify())
+            tmp_svg.flush()
+            run_cargo_command('resvg', tmp_svg.name, tmp_png.name, width=round(Inch(path_len, 'mm')*dpi), height=pixel_height)
+            shutil.copy(tmp_png.name, f'/tmp/debug_{i}.png')
+
+            run_command('didder', 'edm', '--serpentine', 'FloydSteinberg', palette='black white', i=tmp_png.name, o=tmp_dither.name)
+            shutil.copy(tmp_dither.name, f'/tmp/dither_{tape_num}.png')
+            preview_images.append(Tag('image', width=path_len, height=stroke_w, preserveAspectRatio='none',
+                                      id=f'preview_image_{tape_num}',
+                                      x=0, y=0,
+                                      transform=f'translate({x1} {y1}) rotate({math.degrees(path_angle)}) translate(0 {-stroke_w/2})',
+                                      xlink__href=f'data:image/png;base64,{base64.b64encode(tmp_dither.read()).decode()}'))
+
+            print('wrote', f'/tmp/dither_{tape_num}.png')
+            tape_num += 1
+
+    tags = [Tag('g', inkscape__layer='Layer 1', inkscape__groupmode='layer', id='layer1', children=[
+            Tag('g', id='g1', children=preview_images)
+        ])]
+
+    vbx, vby, vbw, vbh = map(float, soup.find('svg')['viewBox'].split())
+    bounds = (vbx, vby), (vbx+vbw, vby+vbh)
+    svg = setup_svg(tags, bounds, inkscape=True)
+    Path('/tmp/preview.svg').write_text(str(svg))
 
 
 if __name__ == '__main__':
