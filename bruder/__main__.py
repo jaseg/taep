@@ -1,0 +1,2 @@
+import bruder
+bruder.cli()

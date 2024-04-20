@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import tempfile
-import shutil
 import webbrowser
 import re
 import base64
@@ -17,6 +16,9 @@ import click
 from bs4 import BeautifulSoup
 
 from svg_util import *
+
+
+__version__ = "v1.0.0-rc1"
 
 
 def run_cargo_command(binary, *args, **kwargs):
@@ -161,7 +163,8 @@ def do_dither(soup, magic_color, dpi, pixel_height):
             tmp_svg.flush()
             run_cargo_command('resvg', tmp_svg.name, tmp_png.name, width=round(Inch(path_len, 'mm')*dpi), height=pixel_height)
 
-            run_command('didder', 'edm', '--serpentine', 'FloydSteinberg', palette='black white', i=tmp_png.name, o=tmp_dither.name)
+            args = shlex.split(os.environ.get('DIDDER_ARGS', 'edm --serpentine FloydSteinberg'))
+            run_command('didder', *args, palette='black white', i=tmp_png.name, o=tmp_dither.name)
             yield (x1, y1, path_angle, stroke_w, path_len), tmp_dither.read()
 
 
@@ -212,7 +215,7 @@ def cli():
 @click.option('--tape-border', type=float, default=3, help='Width of empty border at the edges of the tape in mm')
 @click.option('--tape-spacing', type=float, default=2, help='Space between tapes')
 @click.option('--tape-length', type=float, default=250, help='Length of tape segments')
-@click.option('--magic-color', type=str, default='#cc0000', help='SVG color of tape')
+@click.option('--magic-color', type=str, default='#cc0301', help='SVG color of tape')
 @click.argument('output_svg', type=click.File(mode='w'), default='-')
 def template(num_rows, tape_width, tape_border, tape_spacing, tape_length, magic_color, output_svg):
     pitch = tape_width + tape_spacing
@@ -234,7 +237,7 @@ def template(num_rows, tape_width, tape_border, tape_spacing, tape_length, magic
 
 
 @cli.command('print')
-@click.option('--magic-color', type=str, default='#cc0000', help='SVG color of tape')
+@click.option('--magic-color', type=str, default='#cc0301', help='SVG color of tape')
 @click.option('--dpi', type=float, default=180, help='Printer bitmap resolution in DPI')
 @click.option('--pixel-height', type=int, default=127, help='Printer tape vertical pixel height')
 @click.option('--confirm/--no-confirm', default=True, help='Ask for confirmation before printing each tape')
@@ -268,7 +271,7 @@ def cli_print(input_svg, tape, magic_color, dpi, pixel_height, confirm):
 
 
 @cli.command()
-@click.option('--magic-color', type=str, default='#cc0000', help='SVG color of tape')
+@click.option('--magic-color', type=str, default='#cc0301', help='SVG color of tape')
 @click.option('--dpi', type=float, default=180, help='Printer bitmap resolution in DPI')
 @click.option('--pixel-height', type=int, default=127, help='Printer tape vertical pixel height')
 @click.argument('input_svg', type=click.File(mode='r'), default='-')
@@ -278,7 +281,7 @@ def preview(input_svg, output_svg, magic_color, dpi, pixel_height):
 
 
 @cli.command()
-@click.option('--magic-color', type=str, default='#cc0000', help='SVG color of tape')
+@click.option('--magic-color', type=str, default='#cc0301', help='SVG color of tape')
 @click.option('--dpi', type=float, default=180, help='Printer bitmap resolution in DPI')
 @click.option('--pixel-height', type=int, default=127, help='Printer tape vertical pixel height')
 @click.argument('input_svg', type=click.File(mode='r'), default='-')
@@ -288,7 +291,7 @@ def assembly(input_svg, output_svg, magic_color, dpi, pixel_height):
 
 
 @cli.command()
-@click.option('--magic-color', type=str, default='#cc0000', help='SVG color of tape')
+@click.option('--magic-color', type=str, default='#cc0301', help='SVG color of tape')
 @click.option('--dpi', type=float, default=180, help='Printer bitmap resolution in DPI')
 @click.option('--pixel-height', type=int, default=127, help='Printer tape vertical pixel height')
 @click.argument('input_svg', type=click.File(mode='r'), default='-')

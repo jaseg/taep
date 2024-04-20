@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ['bruder']
+
+[project]
+name = "bruder"
+version = "v1.0.0-rc1"
+description = "Print pictures as collages using label tape printers"
+readme = "README.rst"
+authors = [{name = "jaseg", email = "code@jaseg.de"}]
+license = {text = "GPLv2+ or LGPLv2.1+"}
+requires-python = ">=3.10"
+keywords = ['graphics', 'svg', 'printing', 'printer', 'label', 'label printer', 'brother', 'p-touch', 'dithering',
+            'image processing', 'collage']
+dependencies = ['click', 'beautifulsoup4']
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'Intended Audience :: End Users/Desktop',
+    'License :: OSI Approved :: BSD License',
+    'Natural Language :: English',
+    'Operating System :: POSIX',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Topic :: Multimedia :: Graphics :: Editors :: Vector-Based',
+    'Topic :: Multimedia :: Graphics :: Presentation',
+    'Topic :: Printing',
+    'Topic :: Scientific/Engineering :: Image Processing',
+    'Topic :: System :: Hardware :: Universal Serial Bus (USB) :: Printer',
+    'Topic :: Utilities',
+]
+
+[project.urls]
+homepage = "https://github.com/jaseg/bruder"
+

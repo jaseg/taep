@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class LengthUnit:
-    """ Convenience length unit class. Used in :py:class:`.GraphicObject` and :py:class:`.Aperture` to store lenght
+    """ Convenience length unit class. Used in :py:class:`.GraphicObject` and :py:class:`.Aperture` to store length
     information. Provides a number of useful unit conversion functions.
 
     Singleton, use only global instances ``utils.MM`` and ``utils.Inch``.
