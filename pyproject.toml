@@ -3,10 +3,10 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ['bruder']
+py-modules = ['taep']
 
 [project]
-name = "bruder"
+name = "taep"
 version = "v1.0.0-rc1"
 description = "Print pictures as collages using label tape printers"
 readme = "README.rst"
@@ -36,5 +36,5 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/jaseg/bruder"
+homepage = "https://github.com/jaseg/taep"
 

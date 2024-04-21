@@ -1,0 +1,2 @@
+import taep
+taep.cli()
