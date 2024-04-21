@@ -15,11 +15,13 @@ from pathlib import Path
 import click
 from bs4 import BeautifulSoup
 
-from svg_util import *
+from .svg_util import *
 
 
 __version__ = "v1.0.0-rc1"
 
+
+USVG_DPI = 96.0
 
 def run_cargo_command(binary, *args, **kwargs):
     # By default, try a number of options:
@@ -98,7 +100,20 @@ def print_tape(png_file):
         raise click.ClickException(f'ptouch-print exited with return code {e.returncode}.')
 
 
+def calc_scale(soup):
+    svg = soup.find('svg')
+    vb_x, vb_y, vb_w, vb_h = map(float, svg['viewBox'].split())
+    doc_w, doc_h = float(svg['width']), float(svg['height'])
+    doc_w_mm = doc_w / USVG_DPI * 25.4
+    doc_h_mm = doc_h / USVG_DPI * 25.4
+    mm_per_px_x = doc_w_mm / vb_w
+    mm_per_px_y = doc_h_mm / vb_h
+    return mm_per_px_x, mm_per_px_y
+
+
 def do_dither(soup, magic_color, dpi, pixel_height):
+    mm_per_px_x, mm_per_px_y = calc_scale(soup)
+
     for i, path in enumerate(list(soup.find_all('path'))):
         if path.get('stroke').lower() != magic_color:
             continue
@@ -123,6 +138,7 @@ def do_dither(soup, magic_color, dpi, pixel_height):
         x1, y1 = mat.transform_point(x1, y1)
         x2, y2 = mat.transform_point(x2, y2)
         path_len = math.dist((x1, y1), (x2, y2))
+        path_len_mm = math.dist((x1*mm_per_px_x, y1*mm_per_px_y), (x2*mm_per_px_x, y2*mm_per_px_y))
 
         if math.isclose(path_len, 0, abs_tol=1e-3):
             print('Path', path_id, 'has magic color, but has (almost) zero length. Ignoring.', file=sys.stderr)
@@ -139,10 +155,11 @@ def do_dither(soup, magic_color, dpi, pixel_height):
         sx1, sy1 = mat.transform_point(x1-dy*stroke_w/2, y1+dx*stroke_w/2)
         sx2, sy2 = mat.transform_point(x1+dy*stroke_w/2, y1-dx*stroke_w/2)
         stroke_w = round(math.dist((sx1, sy1), (sx2, sy2)), 3)
+        stroke_w_mm = round(math.dist((sx1*mm_per_px_x, sy1*mm_per_px_y), (sx2*mm_per_px_x, sy2*mm_per_px_y)), 3)
 
         out_soup = copy.copy(soup)
 
-        #print(f'found path {path_id} of length {path_len:2f} and angle {math.degrees(path_angle):.1f} deg with physical stroke width {stroke_w:.2f} from ({x1:.2f}, {y1:.2f}) to ({x2:.2f}, {y2:.2f})', file=sys.stderr)
+        print(f'Identified tape from path "{path_id}", length {path_len_mm:2f} mm, angle {math.degrees(path_angle):.1f} deg with physical stroke width {stroke_w_mm:.2f} mm from ({x1:.2f}, {y1:.2f}) to ({x2:.2f}, {y2:.2f})')
         #out_soup.find('svg').append(out_soup.new_tag('path', fill='none', stroke='blue', stroke_width=f'24px',
         #            d=f'M {x1} {y1} L {x2} {y2}'))
         xf = Transform.translate(0, stroke_w/2) * Transform.rotate(-path_angle) * Transform.translate(-x1, -y1)
@@ -153,8 +170,8 @@ def do_dither(soup, magic_color, dpi, pixel_height):
         out_soup.find('svg').append(g)
         out_soup.find('path', id=path['id']).parent.decompose()
         out_soup.find('svg')['viewBox'] = f'0 0 {path_len} {stroke_w}'
-        out_soup.find('svg')['width'] = f'{path_len}mm'
-        out_soup.find('svg')['height'] = f'{stroke_w}mm'
+        out_soup.find('svg')['width'] = f'{path_len_mm}mm'
+        out_soup.find('svg')['height'] = f'{stroke_w_mm}mm'
 
         with tempfile.NamedTemporaryFile('w', suffix='.svg') as tmp_svg,\
                 tempfile.NamedTemporaryFile('rb', suffix='.png') as tmp_png,\
