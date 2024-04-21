@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 from .svg_util import *
 
 
-__version__ = "v1.0.0-rc1"
+__version__ = "v1.0.0-rc2"
 
 
 USVG_DPI = 96.0

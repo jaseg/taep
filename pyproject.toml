@@ -7,7 +7,7 @@ py-modules = ['taep']
 
 [project]
 name = "taep"
-version = "v1.0.0-rc1"
+version = "v1.0.0-rc2"
 description = "Print pictures as collages using label tape printers"
 readme = "README.rst"
 authors = [{name = "jaseg", email = "code@jaseg.de"}]
